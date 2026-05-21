@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CoGo IoT — Plant Operations Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #080c10;
+  --surface: #0d1218;
+  --surface2: #121820;
+  --border: rgba(255,255,255,0.06);
+  --border2: rgba(255,255,255,0.1);
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --dim: #334155;
+  --cyan: #00d4ff;
+  --cyan-dim: rgba(0,212,255,0.12);
+  --cyan-glow: rgba(0,212,255,0.06);
+  --green: #00ff88;
+  --green-dim: rgba(0,255,136,0.1);
+  --amber: #ffb020;
+  --amber-dim: rgba(255,176,32,0.12);
+  --red: #ff4455;
+  --red-dim: rgba(255,68,85,0.12);
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* SCANLINE OVERLAY */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* LAYOUT */
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  grid-template-rows: 52px 1fr;
+  min-height: 100vh;
+}
+
+/* TOP BAR */
+.topbar {
+  grid-column: 1 / -1;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 24px;
+  position: relative;
+  animation: fadeDown 0.5s ease both;
+}
+
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.logo {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cyan);
+  letter-spacing: 0.1em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+  animation: pulse 2s ease infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--cyan); }
+  50% { opacity: 0.5; box-shadow: 0 0 3px var(--cyan); }
+}
+
+.topbar-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.breadcrumb-sep { color: var(--dim); }
+.breadcrumb-active { color: var(--text); }
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--green-dim);
+  border: 1px solid rgba(0,255,136,0.2);
+  border-radius: 2px;
+  padding: 4px 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--green);
+  letter-spacing: 0.1em;
+}
+
+.status-pill .dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 1.5s ease infinite;
+}
+
+.time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.avatar {
+  width: 28px; height: 28px;
+  border-radius: 2px;
+  background: var(--cyan-dim);
+  border: 1px solid var(--cyan);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cyan);
+  font-family: var(--mono);
+}
+
+/* SIDEBAR */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 0;
+  animation: fadeLeft 0.6s 0.1s ease both;
+}
+
+@keyframes fadeLeft {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.nav-section {
+  margin-bottom: 28px;
+}
+
+.nav-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  color: var(--dim);
+  text-transform: uppercase;
+  padding: 0 20px;
+  margin-bottom: 6px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 20px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--muted);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: all 0.15s;
+  position: relative;
+}
+
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+
+.nav-item.active {
+  color: var(--cyan);
+  background: var(--cyan-glow);
+  border-left-color: var(--cyan);
+  font-weight: 500;
+}
+
+.nav-icon {
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+}
+
+.nav-badge {
+  margin-left: auto;
+  background: var(--red-dim);
+  border: 1px solid rgba(255,68,85,0.3);
+  color: var(--red);
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+/* MAIN */
+.main {
+  background: var(--bg);
+  padding: 24px;
+  overflow-y: auto;
+  animation: fadeIn 0.7s 0.2s ease both;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* PAGE HEADER */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+
+.page-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+}
+
+.page-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  padding: 7px 14px;
+  border-radius: 2px;
+  cursor: pointer;
+  border: none;
+  text-transform: uppercase;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+}
+
+.btn-primary {
+  background: var(--cyan);
+  color: var(--bg);
+}
+
+/* KPI ROW */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+  animation: kpiIn 0.5s ease both;
+}
+
+.kpi:nth-child(1) { animation-delay: 0.25s; }
+.kpi:nth-child(2) { animation-delay: 0.35s; }
+.kpi:nth-child(3) { animation-delay: 0.45s; }
+.kpi:nth-child(4) { animation-delay: 0.55s; }
+
+@keyframes kpiIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.kpi::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.kpi.ok::after { background: var(--green); }
+.kpi.warn::after { background: var(--amber); }
+.kpi.crit::after { background: var(--red); }
+.kpi.info::after { background: var(--cyan); }
+
+.kpi-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.kpi-val {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.kpi.ok .kpi-val { color: var(--green); }
+.kpi.warn .kpi-val { color: var(--amber); }
+.kpi.crit .kpi-val { color: var(--red); }
+.kpi.info .kpi-val { color: var(--cyan); }
+
+.kpi-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.kpi-delta {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 2px;
+}
+
+.delta-up { background: var(--green-dim); color: var(--green); }
+.delta-down { background: var(--red-dim); color: var(--red); }
+.delta-flat { background: var(--amber-dim); color: var(--amber); }
+
+/* GRID */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.grid-3-1 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* CARD */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.card-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+
+.card-body { padding: 18px; }
+
+/* CHART AREA (SVG-based) */
+.chart-wrap {
+  position: relative;
+  height: 140px;
+}
+
+.chart-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* SENSOR TABLE */
+.sensor-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sensor-table th {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--dim);
+  padding: 0 0 10px;
+  text-align: left;
+  font-weight: 400;
+  border-bottom: 1px solid var(--border);
+}
+
+.sensor-table td {
+  padding: 10px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.sensor-table tr:last-child td { border-bottom: none; }
+
+.sensor-table td:nth-child(2) {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.s-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.s-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.s-ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.s-warn { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+.s-crit { background: var(--red); box-shadow: 0 0 6px var(--red); animation: blink 1s ease infinite; }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.s-status {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 2px;
+}
+
+.s-status.ok { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,255,136,0.2); }
+.s-status.warn { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(255,176,32,0.2); }
+.s-status.crit { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,68,85,0.2); }
+
+/* ALERT LIST */
+.alert-list { display: flex; flex-direction: column; gap: 8px; }
+
+.alert-item {
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 2px;
+  border-left: 3px solid;
+  align-items: flex-start;
+}
+
+.alert-item.crit { background: var(--red-dim); border-color: var(--red); }
+.alert-item.warn { background: var(--amber-dim); border-color: var(--amber); }
+.alert-item.info { background: var(--cyan-glow); border-color: var(--cyan); }
+
+.alert-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+.alert-content { flex: 1; }
+
+.alert-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.alert-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* MINI SPARKLINE */
+.spark-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.spark-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.spark-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  width: 80px;
+  flex-shrink: 0;
+  letter-spacing: 0.05em;
+}
+
+.spark-bar-wrap {
+  flex: 1;
+  height: 4px;
+  background: var(--surface2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.spark-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 1s ease;
+}
+
+.spark-val {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  width: 42px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* FLOOR MAP */
+.floor-map {
+  background: var(--surface2);
+  border-radius: 2px;
+  padding: 16px;
+  position: relative;
+  height: 200px;
+}
+
+.zone {
+  position: absolute;
+  border-radius: 2px;
+  border: 1px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.zone:hover { filter: brightness(1.3); }
+
+.zone.ok { border-color: rgba(0,255,136,0.4); background: rgba(0,255,136,0.05); color: var(--green); }
+.zone.warn { border-color: rgba(255,176,32,0.4); background: rgba(255,176,32,0.06); color: var(--amber); }
+.zone.crit { border-color: rgba(255,68,85,0.5); background: rgba(255,68,85,0.08); color: var(--red); }
+
+.zone-label { font-weight: 500; margin-bottom: 3px; }
+.zone-temp { font-size: 11px; font-weight: 600; }
+
+/* PERSONA TABS */
+.persona-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.p-tab {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 8px 16px;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.p-tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      COGO_IOT
+    </div>
+    <div class="topbar-center">
+      <span>PLANT_OPS</span>
+      <span class="breadcrumb-sep">/</span>
+      <span>FACILITY_A</span>
+      <span class="breadcrumb-sep">/</span>
+      <span class="breadcrumb-active">OVERVIEW</span>
+    </div>
+    <div class="topbar-right">
+      <div class="status-pill"><div class="dot"></div>ALL SYSTEMS NOMINAL</div>
+      <div class="time" id="clock">--:--:-- UTC</div>
+      <div class="avatar">PT</div>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="nav-section">
+      <div class="nav-label">Monitor</div>
+      <div class="nav-item active"><span class="nav-icon">◈</span> Overview</div>
+      <div class="nav-item"><span class="nav-icon">⬡</span> Asset Health</div>
+      <div class="nav-item"><span class="nav-icon">〰</span> Sensor Feed</div>
+      <div class="nav-item"><span class="nav-icon">⚠</span> Alerts <span class="nav-badge">3</span></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Analyze</div>
+      <div class="nav-item"><span class="nav-icon">▦</span> Production</div>
+      <div class="nav-item"><span class="nav-icon">◎</span> Energy</div>
+      <div class="nav-item"><span class="nav-icon">⊞</span> Maintenance</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Manage</div>
+      <div class="nav-item"><span class="nav-icon">⊕</span> Work Orders</div>
+      <div class="nav-item"><span class="nav-icon">◷</span> Schedules</div>
+      <div class="nav-item"><span class="nav-icon">≡</span> Reports</div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <div class="page-header">
+      <div>
+        <div class="page-title">Plant Operations — Facility A</div>
+        <div class="page-sub">SHIFT_02 · TECHNICIAN VIEW · LAST SYNC 00:00:14 AGO</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-ghost">EXPORT</button>
+        <button class="btn btn-primary">+ WORK ORDER</button>
+      </div>
+    </div>
+
+    <!-- PERSONA TABS -->
+    <div class="persona-tabs">
+      <div class="p-tab active">Technician</div>
+      <div class="p-tab">Plant Manager</div>
+      <div class="p-tab">Executive</div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-row">
+      <div class="kpi ok">
+        <div class="kpi-label">OEE Score</div>
+        <div class="kpi-val">87.4%</div>
+        <div class="kpi-meta">
+          <span class="kpi-delta delta-up">↑ 2.1%</span>
+          <span>vs last shift</span>
+        </div>
+      </div>
+      <div class="kpi warn">
+        <div class="kpi-label">Active Alerts</div>
+        <div class="kpi-val">3</div>
+        <div class="kpi-meta">
+          <span class="kpi-delta delta-flat">= 1</span>
+          <span>critical, 2 warn</span>
+        </div>
+      </div>
+      <div class="kpi info">
+        <div class="kpi-label">Throughput</div>
+        <div class="kpi-val">2,847</div>
+        <div class="kpi-meta">
+          <span class="kpi-delta delta-up">↑ 4.3%</span>
+          <span>units/hr</span>
+        </div>
+      </div>
+      <div class="kpi ok">
+        <div class="kpi-label">Uptime</div>
+        <div class="kpi-val">99.1%</div>
+        <div class="kpi-meta">
+          <span class="kpi-delta delta-up">↑ 0.3%</span>
+          <span>30-day avg</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW 2 -->
+    <div class="grid-3-1">
+
+      <!-- SENSOR CHART CARD -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Temperature — Line 3 (°C)</div>
+          <div class="card-tag">LIVE · 1MIN INTERVAL</div>
+        </div>
+        <div class="card-body">
+          <div class="chart-wrap">
+            <svg class="chart-svg" viewBox="0 0 500 140" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#00d4ff" stop-opacity="0.2"/>
+                  <stop offset="100%" stop-color="#00d4ff" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <!-- Grid lines -->
+              <line x1="0" y1="35" x2="500" y2="35" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="70" x2="500" y2="70" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="105" x2="500" y2="105" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <!-- Labels -->
+              <text x="4" y="32" fill="#334155" font-size="9" font-family="IBM Plex Mono">85°</text>
+              <text x="4" y="67" fill="#334155" font-size="9" font-family="IBM Plex Mono">75°</text>
+              <text x="4" y="102" fill="#334155" font-size="9" font-family="IBM Plex Mono">65°</text>
+              <!-- Warning threshold -->
+              <line x1="0" y1="28" x2="500" y2="28" stroke="rgba(255,176,32,0.3)" stroke-width="1" stroke-dasharray="4,4"/>
+              <text x="460" y="24" fill="#ffb020" font-size="8" font-family="IBM Plex Mono">WARN</text>
+              <!-- Area fill -->
+              <path d="M 20 90 C 60 85 80 75 120 78 C 160 81 180 70 220 65 C 260 60 280 72 320 68 C 360 64 380 58 420 55 C 450 52 470 60 490 57 L 490 140 L 20 140 Z"
+                fill="url(#chartGrad)"/>
+              <!-- Line -->
+              <path d="M 20 90 C 60 85 80 75 120 78 C 160 81 180 70 220 65 C 260 60 280 72 320 68 C 360 64 380 58 420 55 C 450 52 470 60 490 57"
+                fill="none" stroke="#00d4ff" stroke-width="1.5" stroke-linejoin="round"/>
+              <!-- Dots -->
+              <circle cx="490" cy="57" r="3" fill="#00d4ff"/>
+              <circle cx="490" cy="57" r="6" fill="rgba(0,212,255,0.2)"/>
+            </svg>
+          </div>
+          <!-- Sparklines -->
+          <div class="spark-row" style="margin-top:16px;">
+            <div class="spark-item">
+              <div class="spark-label">HUMIDITY</div>
+              <div class="spark-bar-wrap"><div class="spark-bar" style="width:62%;background:var(--cyan);"></div></div>
+              <div class="spark-val" style="color:var(--cyan);">62%</div>
+            </div>
+            <div class="spark-item">
+              <div class="spark-label">PRESSURE</div>
+              <div class="spark-bar-wrap"><div class="spark-bar" style="width:81%;background:var(--green);"></div></div>
+              <div class="spark-val" style="color:var(--green);">1.08 bar</div>
+            </div>
+            <div class="spark-item">
+              <div class="spark-label">VIBRATION</div>
+              <div class="spark-bar-wrap"><div class="spark-bar" style="width:88%;background:var(--amber);"></div></div>
+              <div class="spark-val" style="color:var(--amber);">8.8 mm/s</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ALERT CARD -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Active Alerts</div>
+          <div class="card-tag">3 OPEN</div>
+        </div>
+        <div class="card-body">
+          <div class="alert-list">
+            <div class="alert-item crit">
+              <div class="alert-icon">🔴</div>
+              <div class="alert-content">
+                <div class="alert-title">Bearing Temp Exceeded</div>
+                <div class="alert-meta">MOTOR_07 · 14:32 · +12°C above limit</div>
+              </div>
+            </div>
+            <div class="alert-item warn">
+              <div class="alert-icon">🟡</div>
+              <div class="alert-content">
+                <div class="alert-title">Vibration Threshold</div>
+                <div class="alert-meta">PUMP_03 · 14:18 · 8.8 mm/s</div>
+              </div>
+            </div>
+            <div class="alert-item info">
+              <div class="alert-icon">🔵</div>
+              <div class="alert-content">
+                <div class="alert-title">Scheduled Maintenance</div>
+                <div class="alert-meta">LINE_2 · Due in 4 hrs</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ROW 3 -->
+    <div class="grid-2">
+
+      <!-- SENSOR TABLE -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Asset Status — Line 3</div>
+          <div class="card-tag">8 ASSETS</div>
+        </div>
+        <div class="card-body">
+          <table class="sensor-table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Temp</th>
+                <th>Load</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="s-name"><div class="s-dot s-ok"></div>MOTOR_01</div></td>
+                <td style="font-family:var(--mono);color:var(--green)">71.2°C</td>
+                <td style="font-family:var(--mono);color:var(--muted)">78%</td>
+                <td><span class="s-status ok">NOMINAL</span></td>
+              </tr>
+              <tr>
+                <td><div class="s-name"><div class="s-dot s-ok"></div>PUMP_02</div></td>
+                <td style="font-family:var(--mono);color:var(--green)">68.5°C</td>
+                <td style="font-family:var(--mono);color:var(--muted)">65%</td>
+                <td><span class="s-status ok">NOMINAL</span></td>
+              </tr>
+              <tr>
+                <td><div class="s-name"><div class="s-dot s-warn"></div>PUMP_03</div></td>
+                <td style="font-family:var(--mono);color:var(--amber)">79.1°C</td>
+                <td style="font-family:var(--mono);color:var(--muted)">91%</td>
+                <td><span class="s-status warn">WARNING</span></td>
+              </tr>
+              <tr>
+                <td><div class="s-name"><div class="s-dot s-ok"></div>CONV_04</div></td>
+                <td style="font-family:var(--mono);color:var(--green)">62.0°C</td>
+                <td style="font-family:var(--mono);color:var(--muted)">70%</td>
+                <td><span class="s-status ok">NOMINAL</span></td>
+              </tr>
+              <tr>
+                <td><div class="s-name"><div class="s-dot s-crit"></div>MOTOR_07</div></td>
+                <td style="font-family:var(--mono);color:var(--red)">94.3°C</td>
+                <td style="font-family:var(--mono);color:var(--muted)">98%</td>
+                <td><span class="s-status crit">CRITICAL</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- FLOOR MAP -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Facility Map — Zone View</div>
+          <div class="card-tag">CLICK ZONE FOR DETAIL</div>
+        </div>
+        <div class="card-body" style="padding:12px;">
+          <div class="floor-map">
+            <div class="zone ok" style="left:10px;top:10px;width:28%;height:42%;">
+              <div class="zone-label">ZONE A</div>
+              <div class="zone-temp">71°C</div>
+            </div>
+            <div class="zone ok" style="left:40%;top:10px;width:28%;height:42%;">
+              <div class="zone-label">ZONE B</div>
+              <div class="zone-temp">68°C</div>
+            </div>
+            <div class="zone crit" style="right:10px;top:10px;width:26%;height:42%;">
+              <div class="zone-label">ZONE C</div>
+              <div class="zone-temp">94°C !</div>
+            </div>
+            <div class="zone warn" style="left:10px;bottom:10px;width:45%;height:38%;">
+              <div class="zone-label">ZONE D — ASSEMBLY</div>
+              <div class="zone-temp">79°C</div>
+            </div>
+            <div class="zone ok" style="right:10px;bottom:10px;width:42%;height:38%;">
+              <div class="zone-label">ZONE E — PACKAGING</div>
+              <div class="zone-temp">65°C</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<script>
+// Live clock
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getUTCHours()).padStart(2,'0');
+  const m = String(now.getUTCMinutes()).padStart(2,'0');
+  const s = String(now.getUTCSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s} UTC`;
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// Animate spark bars on load
+setTimeout(() => {
+  document.querySelectorAll('.spark-bar').forEach(bar => {
+    const w = bar.style.width;
+    bar.style.width = '0%';
+    setTimeout(() => bar.style.width = w, 100);
+  });
+}, 300);
+</script>
+</body>
+</html>
